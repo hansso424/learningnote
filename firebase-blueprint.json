@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "Room": {
+      "collection": "rooms",
+      "fields": {
+        "teacherName": { "type": "string" },
+        "targetGrade": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "createdAt": { "type": "number" }
+      }
+    },
+    "Reflection": {
+      "collection": "reflections",
+      "fields": {
+        "roomCode": { "type": "string" },
+        "studentName": { "type": "string" },
+        "subject": { "type": "string" },
+        "subjectColor": { "type": "string" },
+        "step1Text": { "type": "string" },
+        "aiQuestion": { "type": "string" },
+        "aiHint": { "type": "string" },
+        "step2Text": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    }
+  }
+}
