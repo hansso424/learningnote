@@ -1,4 +1,7 @@
-import { LearningMaterial, NoteAnalysisResult, NoteAnalysisStatus } from '../types';
+/**
+ * Gemini AI Service for Reflection Note
+ * Handles Handwriting OCR and Reflection Question Generation
+ */
 
 export async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -13,322 +16,168 @@ export async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-/**
- * Recognize student handwriting using server OCR API
- */
 export async function recognizeHandwriting(
   file: File,
   apiKey?: string
 ): Promise<string> {
-  try {
-    const base64 = await fileToBase64(file);
-    const res = await fetch('/api/ocr-handwriting', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageBase64: base64,
-        mimeType: file.type || 'image/jpeg',
-        apiKey,
-      }),
-    });
+  const key = apiKey?.trim();
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.text && data.text.trim()) {
-        return data.text.trim();
+  if (key) {
+    try {
+      const base64 = await fileToBase64(file);
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
+        key
+      )}`;
+
+      const payload = {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: '이미지에 있는 학생의 손글씨 공책 필기를 읽어 텍스트로 깔끔하게 변환해주세요. 읽을 수 없는 부분은 추측하지 말고 [판독불가]라고 표시하세요. 부가적인 인사나 설명 없이 변환된 텍스트 내용만 출력하세요.',
+              },
+              {
+                inlineData: {
+                  mimeType: file.type || 'image/jpeg',
+                  data: base64,
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text && text.trim()) {
+          return text.trim();
+        }
       }
+    } catch (err) {
+      console.warn('Gemini OCR API error, using fallback simulated recognition:', err);
     }
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || '손글씨 인식에 실패했습니다.');
-  } catch (err: any) {
-    console.warn('OCR error:', err);
-    throw new Error(
-      err.message || 'API 키가 설정되지 않았거나 이미지를 읽지 못했습니다. 직접 입력해주세요.'
-    );
   }
+
+  // If no API key or API call failed, provide a helpful message
+  throw new Error('API 키가 설정되지 않았거나 이미지를 읽지 못했습니다. 직접 입력해주세요.');
 }
 
-export interface AnalyzeLearningNoteParams {
-  studentName?: string;
-  subject: string;
-  topic: string;
-  targetGrade?: string;
-  step1Text: string;
-  learningMaterials?: LearningMaterial[];
-  apiKey?: string;
-}
+export async function generateReflectionQuestion(
+  subject: string,
+  step1Text: string,
+  topic?: string,
+  targetGrade?: string,
+  apiKey?: string
+): Promise<{ question: string; hint: string }> {
+  const key = apiKey?.trim();
 
-/**
- * Main AI Note Analysis & Question Generator
- * Calls backend API with fallback heuristic model
- */
-export async function analyzeLearningNote(
-  params: AnalyzeLearningNoteParams
-): Promise<NoteAnalysisResult> {
-  const {
-    studentName,
-    subject,
-    topic,
-    targetGrade,
-    step1Text,
-    learningMaterials = [],
-    apiKey,
-  } = params;
+  if (key) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
+        key
+      )}`;
 
-  try {
-    const res = await fetch('/api/analyze-learning-note', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentName,
-        subject,
-        topic,
-        targetGrade,
-        step1Text,
-        learningMaterials: learningMaterials.map((m) => ({
-          title: m.title,
-          subject: m.subject,
-          grade: m.grade,
-          unit: m.unit,
-          topic: m.topic,
-          description: m.description,
-          extractedText: m.extractedText?.slice(0, 1500),
-        })),
-        apiKey,
-      }),
-    });
+      const prompt = `과목: ${subject}
+학습 주제: ${topic || '미입력'}
+대상 학년: ${targetGrade || '초등학생'}
+학생의 배움 기록:
+${step1Text}
 
-    if (res.ok) {
-      const data = (await res.json()) as NoteAnalysisResult;
-      if (data && data.status && data.feedback) {
-        return data;
+당신은 학생들을 따뜻하게 격려하는 친절한 선생님입니다. 서비스 이름은 「생각 한 칸 더」입니다.
+학생이 작성한 학습 주제와 배움 기록을 바탕으로, 단순 암기 확인이 아니라 학생의 생각과 감정, 실생활 연결, 또는 '생각을 한 칸 더' 넓힐 수 있는 맞춤형 성찰 질문 1개와 구체적인 생각 힌트 1개를 만들어주세요.
+학생의 학년 수준에 알맞은 다정하고 쉬운 어조를 사용하세요.`;
+
+      const payload = {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              question: { type: 'STRING', description: '학생을 위한 깊은 성찰 질문' },
+              hint: { type: 'STRING', description: '답변을 돕는 친절한 생각 힌트' },
+            },
+            required: ['question', 'hint'],
+          },
+        },
+      };
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (rawText) {
+          const parsed = JSON.parse(rawText);
+          if (parsed.question && parsed.hint) {
+            return {
+              question: parsed.question,
+              hint: parsed.hint,
+            };
+          }
+        }
       }
-    } else {
-      const errJson = await res.json().catch(() => ({}));
-      console.warn('Backend note analysis returned error:', errJson);
+    } catch (e) {
+      console.warn('Gemini question generation error, falling back to heuristic question:', e);
     }
-  } catch (err) {
-    console.warn('Backend note analysis network error, using local fallback:', err);
   }
 
-  // Local Educational Heuristic Fallback
-  return generateHeuristicAnalysis(params);
-}
-
-/**
- * Local heuristic analyzer for robust offline/no-key handling
- */
-function generateHeuristicAnalysis(
-  params: AnalyzeLearningNoteParams
-): NoteAnalysisResult {
-  const { subject, topic, step1Text, learningMaterials = [] } = params;
-  const trimmed = step1Text.trim();
-  const lowerText = trimmed.toLowerCase();
-
-  // Find if matching learning material exists
-  const matchedMaterial = learningMaterials.find(
-    (m) =>
-      m.subject === subject &&
-      (topic && m.topic ? m.topic.includes(topic) || topic.includes(m.topic) : true)
-  ) || learningMaterials[0];
-
-  // Detect pure emotions/sentiment patterns
-  const emotionOnlyPatterns = [
-    '재미있었다',
-    '재밌었다',
-    '신기했다',
-    '어려웠다',
-    '쉬웠다',
-    '좋았다',
-    '지루했다',
-    '그냥 그랬다',
-    '즐거웠다',
-    '몰라요',
-    '없음',
-  ];
-
-  const isPureEmotion =
-    emotionOnlyPatterns.some((pattern) => trimmed.includes(pattern)) &&
-    trimmed.length < 30 &&
-    !trimmed.includes('왜냐하면') &&
-    !trimmed.includes('배웠다');
-
-  const isTooShort = trimmed.length < 15 && !trimmed.includes(' ');
-
-  if (isPureEmotion || isTooShort) {
-    return {
-      status: 'needs_more_detail',
-      confidence: 0.88,
-      learningSummary: {
-        coreConcepts: [topic || `${subject} 핵심 개념`],
-        coveredConcepts: [],
-        missingConcepts: [topic || `${subject} 주요 배움 내용`],
-      },
-      analysis: {
-        understanding: '배움에 대한 단순 느낌이나 단어만 적혀 있습니다.',
-        error: null,
-        reason: '수업에서 배운 구체적인 원리나 핵심 개념이 드러나지 않아 추가 정리가 필요합니다.',
-      },
-      feedback:
-        '오늘 수업에 대한 솔직한 마음을 적어주었네요! 오늘 수업 시간에 배운 중요한 내용이나 새로 알게 된 사실을 1~2문장으로 조금만 더 적어볼까요?',
-      revisionPrompt:
-        '오늘 배운 핵심 개념, 과정, 원리 중에서 기억에 남는 내용을 나의 말로 1~2문장 덧붙여 써보세요.',
-    };
-  }
-
-  // Detect common misconceptions or inverted reasoning
-  const misconceptionCheck = checkPotentialMisconceptions(subject, topic, trimmed);
-  if (misconceptionCheck) {
-    return {
-      status: 'needs_revision',
-      confidence: 0.85,
-      learningSummary: {
-        coreConcepts: [topic || `${subject} 개념`],
-        coveredConcepts: [],
-        missingConcepts: [topic || `${subject} 올바른 개념`],
-      },
-      analysis: {
-        understanding: '핵심 개념의 원인이나 정의에 보완할 부분이 있습니다.',
-        error: misconceptionCheck.error,
-        reason: '배운 내용과 사실적 인과관계가 다르게 작성되었습니다.',
-      },
-      feedback: misconceptionCheck.feedback,
-      revisionPrompt: misconceptionCheck.prompt,
-    };
-  }
-
-  // Ready for Question -> Generate rich question tailored to subject & student's writing
-  const { question, hint, questionType } = generateSubjectSpecificQuestion(
-    subject,
-    topic,
-    trimmed,
-    matchedMaterial
-  );
-
-  return {
-    status: 'ready_for_question',
-    confidence: 0.94,
-    learningSummary: {
-      coreConcepts: [topic || `${subject} 탐구`],
-      coveredConcepts: [topic || `${subject} 핵심 요점`],
-      missingConcepts: [],
-    },
-    analysis: {
-      understanding: '오늘 배운 핵심 내용을 자신의 언어로 잘 요약하여 정리했습니다.',
-      error: null,
-      reason: '배움의 핵심이 잘 정리되어 성찰 질문을 통해 사고를 확장할 준비가 되었습니다.',
-    },
-    feedback: '오늘 배운 내용을 핵심을 짚어 아주 훌륭하게 정리했어요! 이제 생각을 한 칸 더 넓혀볼까요?',
-    questionType,
-    nextQuestion: question,
-    nextQuestionHint: hint,
-  };
-}
-
-function checkPotentialMisconceptions(
-  subject: string,
-  topic: string,
-  text: string
-): { error: string; feedback: string; prompt: string } | null {
-  // Example cross-subject sanity checks for heuristic mode
-  if (subject === '과학' && text.includes('해가 지구를 돌') && !text.includes('지동설')) {
-    return {
-      error: '지구의 자전/공전과 태양의 겉보기 운동에 대한 혼동이 있습니다.',
-      feedback: '태양이 움직이는 것처럼 보이는 현상에 대해 적어주었네요. 실제로 스스로 돌고 있는 것은 태양일까요, 지구일까요? 다시 한 번 떠올려볼까요?',
-      prompt: '지구의 움직임(자전과 공전)을 생각하며 배운 내용을 다시 수정해보세요.',
-    };
-  }
-  return null;
-}
-
-function generateSubjectSpecificQuestion(
-  subject: string,
-  topic: string,
-  studentText: string,
-  material?: LearningMaterial
-): { question: string; hint: string; questionType: string } {
-  if (material && material.extractedText) {
-    return {
-      question: `오늘 배운 [${material.title || topic || subject}]에서 내가 정리한 내용과 연결지어볼 때, 이 원리가 실생활이나 다른 상황에 적용된다면 어떤 변화나 영향이 나타날까요?`,
-      hint: '교재나 수업 자료에서 보았던 예시 또는 우리 주변의 생활 모습을 떠올려보세요.',
-      questionType: 'application',
-    };
-  }
-
-  const bank: Record<string, { question: string; hint: string; questionType: string }> = {
+  // Pedagogical fallback questions tailored to subjects
+  const fallbackBySubject: Record<string, { question: string; hint: string }> = {
     국어: {
-      question: '오늘 배운 글이나 표현 방법 중에서, 만약 내가 직접 글을 쓰거나 다른 사람에게 마음을 전할 때 꼭 활용해보고 싶은 부분은 무엇이고 왜 그런가요?',
-      hint: '가장 마음에 와닿았던 표현이나 인상 깊었던 인물의 말/행동을 떠올려보세요.',
-      questionType: 'empathy',
+      question: '오늘 배운 이야기나 글에서 가장 마음에 와닿았던 표현이나 인물의 행동은 무엇이고, 왜 그렇게 생각했나요?',
+      hint: '내가 그 인물이었다면 어땠을지 상상해보거나, 가장 기억에 남는 문장을 떠올려보세요.',
     },
     수학: {
-      question: '오늘 배운 수학적 원리나 계산 방법은 일상생활 속 어떤 문제를 해결할 때 가장 유용하게 쓰일 수 있을까요?',
-      hint: '물건을 구매하거나 길이를 재고, 시간을 계획할 때 등 구체적인 상황을 상상해보세요.',
-      questionType: 'application',
+      question: '오늘 배운 수학 개념이나 문제 해결 방법은 우리 생활 속 어디에서 유용하게 쓰일 수 있을까요?',
+      hint: '마트에서 물건을 살 때, 시간을 계산할 때, 길이를 잴 때 등 주변의 상황을 떠올려보세요.',
     },
     사회: {
-      question: '오늘 배운 사회 현상이나 제도(또는 역사적 사건)가 우리 삶이나 사회에 준 가장 큰 변화는 무엇이라고 생각하나요?',
-      hint: '그 사건 이전과 이후에 사람들의 생활 모습이 어떻게 달라졌을지 비교해보세요.',
-      questionType: 'cause_and_effect',
+      question: '오늘 배운 사회 현상이나 역사적 사실을 통해 지금 우리 사회나 나의 삶을 돌아보면 어떤 생각이 드나요?',
+      hint: '그 당시 사람들의 마음은 어땠을지, 혹은 우리 동네와 비교했을 때 어떤 점이 다른지 생각해보세요.',
     },
     과학: {
-      question: '오늘 배운 과학 원리나 관찰 결과에서 "만약 ~라는 조건이 바뀐다면 어떻게 될까?" 하고 추가로 궁금해진 점은 무엇인가요?',
-      hint: '온도, 빛, 힘, 모양 등 조건을 하나 바꾸었을 때 어떤 새로운 결과가 생길지 예상해보세요.',
-      questionType: 'prediction',
-    },
-    도덕: {
-      question: '오늘 배운 가치나 덕목을 내일 나의 하루 생활에서 작은 행동으로 실천해본다면 무엇을 해볼 수 있을까요?',
-      hint: '친구, 가족, 또는 나 자신에게 건넬 수 있는 따뜻한 한마디나 행동을 생각해보세요.',
-      questionType: 'application',
+      question: '오늘 배운 과학 원리를 직접 관찰하거나 실험해보고 싶은 나만의 궁금한 점은 무엇인가요?',
+      hint: '"만약 ~라면 어떻게 될까?" 하는 호기심이나 우리 주변에서 비슷한 현상을 본 적이 있는지 떠올려보세요.',
     },
     영어: {
-      question: '오늘 배운 단어나 표현을 실제 외국인 친구와의 대화 상황에서 쓴다면 어떤 질문이나 대답을 주고받고 싶나요?',
-      hint: '내가 좋아하는 취미나 일상을 소개하는 짧은 대화를 머릿속으로 그려보세요.',
-      questionType: 'application',
+      question: '오늘 배운 단어나 문장 중 외국인 친구를 만났을 때 가장 먼저 써보고 싶은 표현은 무엇인가요?',
+      hint: '그 표현을 사용하는 나의 모습을 상상하며 간단한 상황극을 머릿속으로 그려보세요.',
+    },
+    도덕: {
+      question: '오늘 배운 가치를 내일 나의 하루 생활에서 실천해본다면 어떤 작은 행동부터 시작할 수 있을까요?',
+      hint: '친구에게 건네는 따뜻한 말 한마디나 스스로 지킬 수 있는 약속을 생각해보세요.',
+    },
+    음악: {
+      question: '오늘 배운 음악이나 활동은 나에게 어떤 기분이나 느낌을 선물해주었나요?',
+      hint: '마음속에 떠오른 색깔이나 날씨, 기분을 자유롭게 표현해보세요.',
+    },
+    미술: {
+      question: '오늘 작품이나 표현 활동을 하면서 나의 마음이나 생각이 가장 잘 담긴 부분은 어디인가요?',
+      hint: '색칠할 때나 만들 때 가장 정성을 들였던 순간을 떠올려보세요.',
+    },
+    체육: {
+      question: '오늘 활동에서 내가 가장 뿌듯했던 순간이나 친구들과 함께 협동하며 느낀 점은 무엇인가요?',
+      hint: '승패와 상관없이 내가 최선을 다한 순간이나 친구를 응원했던 기억을 적어보세요.',
     },
   };
 
-  return (
-    bank[subject] || {
-      question: `오늘 배운 [${topic || subject}] 내용 중에서 가장 흥미로웠던 부분은 무엇이며, 이것이 나에게 주는 의미나 새로운 깨달음은 무엇인가요?`,
-      hint: '배우기 전에는 몰랐는데 오늘 새롭게 알게 된 점과 그 이유를 연결해보세요.',
-      questionType: 'reflection',
-    }
-  );
-}
-
-/**
- * Step 2 Thought Reflection Evaluation API helper
- */
-export async function analyzeStep2Reflection(params: {
-  studentName?: string;
-  subject: string;
-  topic: string;
-  targetGrade?: string;
-  step1Text: string;
-  aiQuestion: string;
-  step2Text: string;
-  apiKey?: string;
-}): Promise<{ praise: string; summaryInsight: string; deepeningTip?: string }> {
-  try {
-    const res = await fetch('/api/analyze-step2-reflection', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.praise) return data;
-    }
-  } catch (e) {
-    console.warn('Step 2 reflection evaluation notice:', e);
-  }
-
-  // Heuristic fallback
-  return {
-    praise: '질문에 대해 깊이 있게 고민하고 자신만의 생각을 논리적으로 아주 멋지게 펼쳐냈어요!',
-    summaryInsight: '단순한 지식 암기를 넘어 실제 삶과 연결지어 사고를 한 칸 더 확장했습니다.',
-    deepeningTip: '오늘 기록한 생각을 다음 수업이나 일상생활 속에서도 꼭 기억하며 실천해보세요.',
+  const selected = fallbackBySubject[subject] || {
+    question: '오늘 배운 내용 중에서 친구나 가족에게 가장 자랑스럽게 알려주고 싶은 핵심은 무엇인가요?',
+    hint: '가장 새롭게 알게 된 사실이나 나를 놀라게 했던 내용을 하나 골라보세요.',
   };
+
+  return selected;
 }

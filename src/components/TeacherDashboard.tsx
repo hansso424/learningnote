@@ -159,19 +159,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       onAlert('내보낼 기록이 없습니다.');
       return;
     }
-    const headers = [
-      '날짜',
-      '시간',
-      '학생이름',
-      '과목',
-      '학습주제',
-      '연계_학습자료',
-      '생각다듬기_수정횟수',
-      '1단계_기록',
-      'AI_피드백',
-      'AI_질문',
-      '2단계_생각한칸더',
-    ];
+    const headers = ['날짜', '시간', '학생이름', '과목', '학습주제', '1단계_기록', 'AI_질문', '2단계_생각한칸더'];
     const rows = reflections.map((r) => {
       const d = new Date(r.timestamp);
       return [
@@ -180,10 +168,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         `"${r.studentName}"`,
         `"${r.subject}"`,
         `"${(r.topic || '').replace(/"/g, '""')}"`,
-        `"${(r.matchedMaterialTitle || '-').replace(/"/g, '""')}"`,
-        `"${r.revisionCount || 0}"`,
         `"${r.step1Text.replace(/"/g, '""')}"`,
-        `"${(r.analysisResult?.feedback || '').replace(/"/g, '""')}"`,
         `"${r.aiQuestion.replace(/"/g, '""')}"`,
         `"${r.step2Text.replace(/"/g, '""')}"`,
       ].join(',');
@@ -548,7 +533,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs transition-all space-y-3"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 font-bold flex items-center justify-center text-xs">
                           {ref.studentName.charAt(0)}
                         </div>
@@ -566,18 +551,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                             <span>{ref.topic}</span>
                           </span>
                         )}
-                        {ref.matchedMaterialTitle && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
-                            <FolderOpen className="w-3 h-3 text-teal-600" />
-                            <span>자료연계: {ref.matchedMaterialTitle}</span>
-                          </span>
-                        )}
-                        {ref.revisionCount && ref.revisionCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                            <RotateCw className="w-2.5 h-2.5" />
-                            <span>수정 {ref.revisionCount}회</span>
-                          </span>
-                        ) : null}
                       </div>
                       <span className="text-xs text-slate-400">{date}</span>
                     </div>
@@ -600,63 +573,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           👉 <strong>생각 한 칸 더:</strong> {ref.step2Text}
                         </p>
                       </div>
-
-                      {/* AI Analysis Details */}
-                      {ref.analysisResult && (
-                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-[11px] text-slate-700 flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-sky-600" />
-                              <span>AI 배움 분석 결과</span>
-                            </span>
-                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-bold border border-emerald-200">
-                              {ref.analysisResult.status === 'ready_for_question'
-                                ? '핵심 개념 파악 완료'
-                                : ref.analysisResult.status === 'needs_revision'
-                                ? '개념 점검 수정'
-                                : '내용 보완 완료'}
-                            </span>
-                          </div>
-
-                          <p className="text-[11px] text-slate-600 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200">
-                            {ref.analysisResult.feedback}
-                          </p>
-
-                          {ref.analysisResult.learningSummary && (
-                            <div className="flex flex-wrap gap-1.5 pt-0.5">
-                              {ref.analysisResult.learningSummary.coveredConcepts?.map((c, i) => (
-                                <span
-                                  key={i}
-                                  className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-md font-medium"
-                                >
-                                  ✓ {c}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {ref.revisionHistory && ref.revisionHistory.length > 0 && (
-                            <div className="pt-1.5 border-t border-slate-200 text-[11px] text-slate-500">
-                              <span className="font-bold text-slate-600 block mb-1">
-                                📝 이전 초안 수정 이력 ({ref.revisionHistory.length}건):
-                              </span>
-                              <div className="space-y-1">
-                                {ref.revisionHistory.map((rh, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="p-2 bg-white rounded-md border border-slate-200 text-[10px] text-slate-600"
-                                  >
-                                    <span className="font-bold text-slate-700 mr-2">
-                                      #{rh.revisionNumber}차 작성:
-                                    </span>
-                                    <span className="italic">&ldquo;{rh.content}&rdquo;</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
