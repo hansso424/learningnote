@@ -73,6 +73,7 @@ export async function recognizeHandwriting(
 export async function generateReflectionQuestion(
   subject: string,
   step1Text: string,
+  topic?: string,
   targetGrade?: string,
   apiKey?: string
 ): Promise<{ question: string; hint: string }> {
@@ -85,12 +86,13 @@ export async function generateReflectionQuestion(
       )}`;
 
       const prompt = `과목: ${subject}
+학습 주제: ${topic || '미입력'}
 대상 학년: ${targetGrade || '초등학생'}
 학생의 배움 기록:
 ${step1Text}
 
-당신은 학생들을 따뜻하게 격려하는 친절한 선생님입니다.
-학생이 작성한 배움 기록을 바탕으로, 단순 암기 확인이 아니라 학생의 생각과 감정, 실생활 연결, 또는 배움의 의미를 한 단계 더 깊게 성찰할 수 있는 맞춤형 질문 1개와 구체적인 생각 힌트 1개를 만들어주세요.
+당신은 학생들을 따뜻하게 격려하는 친절한 선생님입니다. 서비스 이름은 「생각 한 칸 더」입니다.
+학생이 작성한 학습 주제와 배움 기록을 바탕으로, 단순 암기 확인이 아니라 학생의 생각과 감정, 실생활 연결, 또는 '생각을 한 칸 더' 넓힐 수 있는 맞춤형 성찰 질문 1개와 구체적인 생각 힌트 1개를 만들어주세요.
 학생의 학년 수준에 알맞은 다정하고 쉬운 어조를 사용하세요.`;
 
       const payload = {

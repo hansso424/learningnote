@@ -15,6 +15,7 @@
         "roomCode": { "type": "string" },
         "studentName": { "type": "string" },
         "subject": { "type": "string" },
+        "topic": { "type": "string" },
         "subjectColor": { "type": "string" },
         "step1Text": { "type": "string" },
         "aiQuestion": { "type": "string" },

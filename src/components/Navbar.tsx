@@ -22,7 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({ appState, onLogout, onGoHome }) 
           </div>
           <div>
             <span className="font-bold text-lg tracking-tight text-slate-800 flex items-center gap-1.5">
-              배움성찰노트
+              생각 한 칸 더
               <span className="text-[10px] font-semibold uppercase tracking-wider bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-md">
                 AI
               </span>

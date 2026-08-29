@@ -1,6 +1,6 @@
 {
-  "name": "배움성찰노트",
-  "description": "선생님과 학생을 위한 AI 배움 성찰 및 기록 플랫폼",
+  "name": "생각 한 칸 더",
+  "description": "선생님과 학생을 위한 AI 배움 성찰 및 생각 확장 기록 플랫폼",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

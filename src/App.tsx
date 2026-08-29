@@ -153,7 +153,7 @@ export default function App() {
       </main>
 
       <footer className="py-6 text-center text-xs text-slate-400 border-t border-slate-200/80 mt-auto">
-        <p>배움성찰노트 • AI 기반 자기주도 배움 성찰 및 학급 피드백 플랫폼</p>
+        <p>생각 한 칸 더 • AI 기반 자기주도 배움 성찰 및 학급 피드백 플랫폼</p>
       </footer>
 
       {/* Custom Alert Modal */}

@@ -13,6 +13,7 @@ export interface Reflection {
   roomCode: string;
   studentName: string;
   subject: string;
+  topic?: string;
   subjectColor: string;
   step1Text: string;
   aiQuestion: string;

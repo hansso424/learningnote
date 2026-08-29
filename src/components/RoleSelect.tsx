@@ -15,7 +15,7 @@ export const RoleSelect: React.FC<RoleSelectProps> = ({ onSelectRole }) => {
           <span>AI 배움 성찰 도우미</span>
         </div>
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-          배움성찰노트
+          생각 한 칸 더
         </h1>
         <p className="text-slate-600 mt-2 text-base">
           오늘의 배움을 기록하고, AI 질문을 통해 생각을 한 단계 더 넓혀보세요.

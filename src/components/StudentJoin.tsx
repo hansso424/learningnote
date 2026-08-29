@@ -146,7 +146,7 @@ export const StudentJoin: React.FC<StudentJoinProps> = ({
             ) : (
               <>
                 <LogIn className="w-5 h-5" />
-                <span>성찰노트 입장하기</span>
+                <span>생각 한 칸 더 입장하기</span>
               </>
             )}
           </button>

@@ -15,6 +15,7 @@ import {
   Award,
   ChevronDown,
   ChevronUp,
+  Bookmark,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -23,7 +24,6 @@ import {
   query,
   where,
   getDocs,
-  orderBy,
 } from 'firebase/firestore';
 import { db, ensureAuth } from '../lib/firebase';
 import { AppState, Reflection, SubjectOption } from '../types';
@@ -39,11 +39,6 @@ const SUBJECT_OPTIONS: SubjectOption[] = [
   { name: '수학', color: '#3b82f6', bgClass: 'bg-blue-500', borderClass: 'border-blue-300', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
   { name: '사회', color: '#f97316', bgClass: 'bg-orange-500', borderClass: 'border-orange-300', badgeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
   { name: '과학', color: '#10b981', bgClass: 'bg-emerald-500', borderClass: 'border-emerald-300', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  { name: '영어', color: '#8b5cf6', bgClass: 'bg-violet-500', borderClass: 'border-violet-300', badgeClass: 'bg-violet-50 text-violet-700 border-violet-200' },
-  { name: '도덕', color: '#0d9488', bgClass: 'bg-teal-600', borderClass: 'border-teal-300', badgeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
-  { name: '음악', color: '#ec4899', bgClass: 'bg-pink-500', borderClass: 'border-pink-300', badgeClass: 'bg-pink-50 text-pink-700 border-pink-200' },
-  { name: '미술', color: '#6366f1', bgClass: 'bg-indigo-500', borderClass: 'border-indigo-300', badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  { name: '체육', color: '#ea580c', bgClass: 'bg-amber-600', borderClass: 'border-amber-300', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
   { name: '기타', color: '#64748b', bgClass: 'bg-slate-600', borderClass: 'border-slate-300', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' },
 ];
 
@@ -53,7 +48,7 @@ const BADGES = [
   { threshold: 5, name: '호기심 쑥쑥', icon: '🔍', desc: '5회 기록 달성' },
   { threshold: 10, name: '배움 탐험가', icon: '🧭', desc: '10회 기록 달성' },
   { threshold: 20, name: '지혜의 나무', icon: '🌳', desc: '20회 기록 달성' },
-  { threshold: 30, name: '빛나는 성찰', icon: '⭐', desc: '30회 기록 달성' },
+  { threshold: 30, name: '생각 한 칸 더', icon: '⭐', desc: '30회 기록 달성' },
 ];
 
 export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) => {
@@ -64,6 +59,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
 
   // Draft state
   const [selectedSubject, setSelectedSubject] = useState<SubjectOption | null>(null);
+  const [topic, setTopic] = useState('');
   const [step1Text, setStep1Text] = useState('');
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiHint, setAiHint] = useState('');
@@ -114,6 +110,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
 
   const handleStartNew = () => {
     setSelectedSubject(null);
+    setTopic('');
     setStep1Text('');
     setAiQuestion('');
     setAiHint('');
@@ -147,6 +144,10 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
       onAlert('성찰할 과목을 선택해주세요.');
       return;
     }
+    if (!topic.trim()) {
+      onAlert('오늘 배운 학습 주제(단원)를 입력해주세요.');
+      return;
+    }
     if (!step1Text.trim()) {
       onAlert('오늘 배운 내용을 기록해주세요.');
       return;
@@ -158,6 +159,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
       const { question, hint } = await generateReflectionQuestion(
         selectedSubject.name,
         step1Text.trim(),
+        topic.trim(),
         appState.targetGrade || undefined,
         appState.apiKey || undefined
       );
@@ -177,7 +179,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
 
   const handleSaveReflection = async () => {
     if (!step2Text.trim()) {
-      onAlert('AI 선생님의 질문에 대한 생각을 적어주세요.');
+      onAlert('AI 선생님의 질문에 대한 나의 생각(생각 한 칸 더)을 적어주세요.');
       return;
     }
 
@@ -192,6 +194,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
         roomCode: appState.roomCode,
         studentName: appState.studentName,
         subject: selectedSubject.name,
+        topic: topic.trim(),
         subjectColor: selectedSubject.bgClass,
         step1Text: step1Text.trim(),
         aiQuestion,
@@ -213,7 +216,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
 
       await fetchReflections();
       setIsFlowActive(false);
-      onAlert('훌륭해요! 오늘의 배움 성찰이 성공적으로 기록되었습니다. 🎉', 'success');
+      onAlert('훌륭해요! 「생각 한 칸 더」 성찰이 성공적으로 기록되었습니다. 🎉', 'success');
     } catch (err: any) {
       console.error('Save reflection error:', err);
       onAlert('저장에 실패했습니다.\n' + (err.message || '다시 시도해주세요.'));
@@ -233,7 +236,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">나의 성장 배지</h2>
-              <p className="text-xs text-slate-500">배움을 꾸준히 기록하며 배지를 모아보세요!</p>
+              <p className="text-xs text-slate-500">배움을 꾸준히 기록하며 &lsquo;생각 한 칸 더&rsquo; 성장해보세요!</p>
             </div>
           </div>
           <div className="text-right">
@@ -273,7 +276,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
             <div>
               <h2 className="text-xl font-bold text-slate-900">오늘의 배움 기록</h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                수업 시간에 배운 내용을 정리하고 AI 질문으로 생각을 넓혀보세요.
+                수업 시간에 배운 내용을 정리하고 AI 질문으로 생각을 한 칸 더 넓혀보세요.
               </p>
             </div>
             <button
@@ -302,8 +305,8 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
                 </div>
                 <h3 className="text-base font-bold text-slate-700">아직 기록된 배움이 없습니다.</h3>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                  위의 &apos;새 배움 기록하기&apos; 버튼을 눌러 오늘 하루 동안 기억에 남는 수업 내용을
-                  적어보세요!
+                  위의 &lsquo;새 배움 기록하기&rsquo; 버튼을 눌러 오늘 배운 과목과 주제, 성찰을
+                  기록해보세요!
                 </p>
               </div>
             ) : (
@@ -323,13 +326,19 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
                     key={ref.id || ref.timestamp}
                     className="bg-white p-5 sm:p-6 rounded-2xl shadow-xs border border-slate-200 space-y-4 hover:border-slate-300 transition-all"
                   >
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-bold text-white shadow-2xs ${ref.subjectColor}`}
                         >
                           {ref.subject}
                         </span>
+                        {ref.topic && (
+                          <div className="flex items-center gap-1 text-xs font-bold text-slate-800 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                            <Bookmark className="w-3 h-3 text-sky-600" />
+                            <span>{ref.topic}</span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-slate-400">
                         <Calendar className="w-3.5 h-3.5" />
@@ -352,9 +361,9 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
                       <div className="bg-sky-50/70 rounded-xl p-4 border border-sky-100 space-y-2">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-sky-700">
                           <Bot className="w-4 h-4" />
-                          <span>AI 선생님 질문에 대한 나의 생각</span>
+                          <span>AI 생각 확장 질문 & 나만의 &lsquo;생각 한 칸 더&rsquo;</span>
                         </div>
-                        <p className="text-xs text-slate-600 italic bg-white/80 p-2.5 rounded-lg border border-sky-100">
+                        <p className="text-xs text-slate-700 font-medium italic bg-white/90 p-2.5 rounded-lg border border-sky-100">
                           Q. {ref.aiQuestion}
                         </p>
                         <p className="text-slate-900 text-sm font-medium leading-relaxed whitespace-pre-line pt-1">
@@ -415,6 +424,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
               id="step-1"
               className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-7 space-y-6"
             >
+              {/* 1. 과목 선택 */}
               <div>
                 <h3 className="text-base font-bold text-slate-900 mb-2">
                   1. 어떤 과목을 배웠나요? <span className="text-rose-500">*</span>
@@ -440,10 +450,30 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
                 </div>
               </div>
 
+              {/* 2. 학습 주제 입력 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-base font-bold text-slate-900">
-                    2. 배움 내용 기록하기 <span className="text-rose-500">*</span>
+                    2. 학습 주제 입력하기 <span className="text-rose-500">*</span>
+                  </h3>
+                  <span className="text-xs text-slate-400">오늘 배운 단원이나 핵심 주제</span>
+                </div>
+                <input
+                  id="topic-input"
+                  type="text"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="예: 분수의 덧셈과 뺄셈, 우리나라의 사계절, 비유적 표현 등"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-hidden text-sm transition-all"
+                  required
+                />
+              </div>
+
+              {/* 3. 배움 내용 기록하기 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-base font-bold text-slate-900">
+                    3. 배움 내용 기록하기 <span className="text-rose-500">*</span>
                   </h3>
                   <span className="text-xs text-slate-400">오늘 무엇을 배웠는지 적어보세요</span>
                 </div>
@@ -498,7 +528,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
                   onClick={handleStep1Next}
                   className="bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-6 rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <span>다음 단계로 (AI 질문 받기)</span>
+                  <span>다음 단계로 (AI 생각 확장 질문 받기)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -521,10 +551,10 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">
-                  AI 선생님이 생각하고 있어요...
+                  AI 선생님이 &lsquo;생각 한 칸 더&rsquo; 질문을 준비하고 있어요...
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                  배운 내용을 더 깊게 생각해보고 나만의 생각을 키울 수 있는 맞춤 질문을 준비하고 있습니다.
+                  작성해주신 학습 주제와 배움 기록을 바탕으로 생각을 한 단계 더 넓힐 수 있는 맞춤 질문을 생성합니다.
                 </p>
               </div>
             </div>
@@ -534,11 +564,18 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
           {currentStep === 2 && !aiLoading && (
             <div id="step-2" className="space-y-5">
               {/* Review Step 1 */}
-              <div className="bg-slate-50 rounded-xl p-4 sm:p-5 border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-400 block mb-1">
-                  나의 첫 기록 ({selectedSubject?.name})
-                </span>
-                <p className="text-slate-800 text-sm font-medium leading-relaxed whitespace-pre-line">
+              <div className="bg-slate-50 rounded-xl p-4 sm:p-5 border border-slate-200 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold text-white ${selectedSubject?.bgClass}`}>
+                    {selectedSubject?.name}
+                  </span>
+                  {topic && (
+                    <span className="text-xs font-bold text-slate-800 bg-white px-2.5 py-0.5 rounded-md border border-slate-200">
+                      주제: {topic}
+                    </span>
+                  )}
+                </div>
+                <p className="text-slate-800 text-sm font-medium leading-relaxed whitespace-pre-line pt-1">
                   {step1Text}
                 </p>
               </div>
@@ -551,7 +588,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
                   </div>
                   <div>
                     <span className="text-xs font-bold text-sky-800 tracking-tight block">
-                      AI 선생님의 생각 확장 질문
+                      AI 선생님의 &lsquo;생각 한 칸 더&rsquo; 질문
                     </span>
                     <span className="text-[11px] text-sky-600">
                       정답이 정해진 것이 아니니 자유롭게 나의 생각을 적어보세요!
@@ -594,7 +631,7 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold text-slate-900">
-                    한 걸음 더 나아가기 <span className="text-rose-500">*</span>
+                    생각 한 칸 더 나아가기 <span className="text-rose-500">*</span>
                   </h3>
                   <span className="text-xs text-slate-400">나만의 생각을 적어보세요</span>
                 </div>
@@ -645,3 +682,4 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
     </div>
   );
 };
+

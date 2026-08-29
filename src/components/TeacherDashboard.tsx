@@ -14,6 +14,7 @@ import {
   FileDown,
   ChevronRight,
   User,
+  Bookmark,
 } from 'lucide-react';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db, ensureAuth } from '../lib/firebase';
@@ -114,6 +115,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const filteredReflections = reflections.filter((r) => {
     const matchSearch =
       r.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.topic && r.topic.toLowerCase().includes(searchQuery.toLowerCase())) ||
       r.step1Text.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.step2Text.toLowerCase().includes(searchQuery.toLowerCase());
     const matchSub = filterSubject === 'all' || r.subject === filterSubject;
@@ -125,7 +127,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       onAlert('내보낼 기록이 없습니다.');
       return;
     }
-    const headers = ['날짜', '시간', '학생이름', '과목', '1단계_기록', 'AI_질문', '2단계_성찰'];
+    const headers = ['날짜', '시간', '학생이름', '과목', '학습주제', '1단계_기록', 'AI_질문', '2단계_생각한칸더'];
     const rows = reflections.map((r) => {
       const d = new Date(r.timestamp);
       return [
@@ -133,6 +135,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         `"${d.toLocaleTimeString()}"`,
         `"${r.studentName}"`,
         `"${r.subject}"`,
+        `"${(r.topic || '').replace(/"/g, '""')}"`,
         `"${r.step1Text.replace(/"/g, '""')}"`,
         `"${r.aiQuestion.replace(/"/g, '""')}"`,
         `"${r.step2Text.replace(/"/g, '""')}"`,
@@ -144,7 +147,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `배움성찰기록_${appState.roomCode}.csv`);
+    link.setAttribute('download', `생각한칸더_성찰기록_${appState.roomCode}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -155,11 +158,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     수학: '#3b82f6',
     사회: '#f97316',
     과학: '#10b981',
-    영어: '#8b5cf6',
-    도덕: '#0d9488',
-    음악: '#ec4899',
-    미술: '#6366f1',
-    체육: '#ea580c',
     기타: '#64748b',
   };
 
@@ -437,8 +435,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   key={ref.id || ref.timestamp}
                   className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs transition-all space-y-3"
                 >
-                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
-                    <div className="flex items-center gap-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 font-bold flex items-center justify-center text-xs">
                         {ref.studentName.charAt(0)}
                       </div>
@@ -450,6 +448,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       >
                         {ref.subject}
                       </span>
+                      {ref.topic && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                          <Bookmark className="w-3 h-3 text-sky-600" />
+                          <span>{ref.topic}</span>
+                        </span>
+                      )}
                     </div>
                     <span className="text-xs text-slate-400">{date}</span>
                   </div>
@@ -466,10 +470,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
                     <div className="bg-sky-50/70 p-3.5 rounded-xl border border-sky-100 space-y-1.5">
                       <span className="font-bold text-sky-800 text-[11px] block">
-                        AI 질문: &ldquo;{ref.aiQuestion}&rdquo;
+                        AI 생각 확장 질문: &ldquo;{ref.aiQuestion}&rdquo;
                       </span>
                       <p className="text-slate-900 font-medium leading-relaxed whitespace-pre-line pt-1">
-                        👉 {ref.step2Text}
+                        👉 <strong>생각 한 칸 더:</strong> {ref.step2Text}
                       </p>
                     </div>
                   </div>
