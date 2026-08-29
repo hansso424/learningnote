@@ -117,7 +117,7 @@ export default function App() {
                 sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
               } catch (_) {}
             }}
-            onAlert={(msg) => showAlert(msg, 'alert')}
+            onAlert={(msg, type) => showAlert(msg, type || 'alert')}
           />
         )}
 
@@ -131,7 +131,7 @@ export default function App() {
                 sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
               } catch (_) {}
             }}
-            onAlert={(msg) => showAlert(msg, 'alert')}
+            onAlert={(msg, type) => showAlert(msg, type || 'alert')}
           />
         )}
 
