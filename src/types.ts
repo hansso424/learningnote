@@ -15,6 +15,43 @@ export interface Room {
   isActive?: boolean;
 }
 
+export type NoteAnalysisStatus =
+  | 'ready_for_question'
+  | 'needs_revision'
+  | 'needs_more_detail';
+
+export interface LearningSummary {
+  coreConcepts: string[];
+  coveredConcepts: string[];
+  missingConcepts: string[];
+}
+
+export interface NoteAnalysisDetails {
+  understanding: string;
+  error?: string | null;
+  reason: string;
+}
+
+export interface NoteAnalysisResult {
+  status: NoteAnalysisStatus;
+  confidence?: number;
+  learningSummary: LearningSummary;
+  analysis: NoteAnalysisDetails;
+  feedback: string;
+  revisionPrompt?: string;
+  questionType?: string | null;
+  nextQuestion?: string;
+  nextQuestionHint?: string;
+}
+
+export interface RevisionRecord {
+  revisionNumber: number;
+  content: string;
+  status: NoteAnalysisStatus;
+  feedback: string;
+  timestamp: number;
+}
+
 export interface Reflection {
   id?: string;
   roomCode: string;
@@ -27,6 +64,12 @@ export interface Reflection {
   aiHint: string;
   step2Text: string;
   timestamp: number;
+  status?: NoteAnalysisStatus;
+  analysisResult?: NoteAnalysisResult;
+  revisionCount?: number;
+  revisionHistory?: RevisionRecord[];
+  matchedMaterialTitle?: string;
+  matchedMaterialId?: string;
 }
 
 export interface LearningMaterial {

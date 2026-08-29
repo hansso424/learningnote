@@ -28,7 +28,13 @@
         "aiQuestion": { "type": "string" },
         "aiHint": { "type": "string" },
         "step2Text": { "type": "string" },
-        "timestamp": { "type": "number" }
+        "timestamp": { "type": "number" },
+        "status": { "type": "string" },
+        "analysisResult": { "type": "object" },
+        "revisionCount": { "type": "number" },
+        "revisionHistory": { "type": "array" },
+        "matchedMaterialTitle": { "type": "string" },
+        "matchedMaterialId": { "type": "string" }
       }
     },
     "LearningMaterial": {
