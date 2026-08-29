@@ -27,7 +27,7 @@ import {
 } from 'firebase/firestore';
 import { db, ensureAuth } from '../lib/firebase';
 import { AppState, Reflection, SubjectOption } from '../types';
-import { recognizeHandwriting, generateReflectionQuestion } from '../services/geminiService';
+import { recognizeHandwriting, generateReflectionQuestion, analyzeReflectionDepth } from '../services/geminiService';
 
 interface StudentViewProps {
   appState: AppState;
@@ -190,6 +190,21 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
     try {
       await ensureAuth();
 
+      // Analyze reflection depth
+      let analysisResult = null;
+      try {
+        analysisResult = await analyzeReflectionDepth(
+          selectedSubject.name,
+          topic.trim(),
+          step1Text.trim(),
+          step2Text.trim(),
+          appState.targetGrade || undefined,
+          appState.apiKey || undefined
+        );
+      } catch (e) {
+        console.warn('Silent analysis fallback in student view:', e);
+      }
+
       const newRecord: Omit<Reflection, 'id'> = {
         roomCode: appState.roomCode,
         studentName: appState.studentName,
@@ -201,6 +216,17 @@ export const StudentView: React.FC<StudentViewProps> = ({ appState, onAlert }) =
         aiHint,
         step2Text: step2Text.trim(),
         timestamp: Date.now(),
+        ...(analysisResult
+          ? {
+              reflectionLevel: analysisResult.reflectionLevel,
+              reflectionLevelName: analysisResult.levelName,
+              reflectionConfidence: analysisResult.confidence,
+              reflectionReason: analysisResult.reason,
+              reflectionEvidence: analysisResult.evidence,
+              reflectionKeywords: analysisResult.keywords || [],
+              reflectionAnalyzedAt: Date.now(),
+            }
+          : {}),
       };
 
       await addDoc(collection(db, 'reflections'), newRecord);

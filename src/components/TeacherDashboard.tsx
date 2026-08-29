@@ -21,18 +21,23 @@ import {
   ShieldCheck,
   RefreshCw,
   Info,
+  BarChart3,
+  TrendingUp,
+  Layers,
 } from 'lucide-react';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db, ensureAuth } from '../lib/firebase';
-import { AppState, Reflection, Room } from '../types';
+import { AppState, Reflection, Room, ReflectionLevelNumber } from '../types';
 import { LearningMaterialsManager } from './LearningMaterialsManager';
+import { ClassReflectionAnalysis } from './ClassReflectionAnalysis';
+import { StudentReflectionModal } from './StudentReflectionModal';
 
 interface TeacherDashboardProps {
   appState: AppState;
   onAlert: (msg: string, type?: 'alert' | 'success') => void;
 }
 
-type TeacherTab = 'dashboard' | 'reflections' | 'materials' | 'settings';
+type TeacherTab = 'dashboard' | 'analysis' | 'reflections' | 'materials' | 'settings';
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   appState,
@@ -44,6 +49,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [copied, setCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState('all');
+  const [selectedReflectionForModal, setSelectedReflectionForModal] = useState<Reflection | null>(null);
 
   // Room details for settings tab
   const [roomData, setRoomData] = useState<Room | null>(null);
@@ -126,6 +132,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const subjectList = Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]);
   const topSubject = subjectList[0] ? subjectList[0][0] : '-';
 
+  // Compute Reflection Depth breakdown for Dashboard Overview
+  const levelCounts: Record<ReflectionLevelNumber, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  reflections.forEach((r) => {
+    const lvl = (r.reflectionLevel || 1) as ReflectionLevelNumber;
+    levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
+  });
+
+  const averageReflectionDepth = totalReflections > 0
+    ? (reflections.reduce((acc, r) => acc + (r.reflectionLevel || 1), 0) / totalReflections).toFixed(1)
+    : '0.0';
+
   // Recent students
   const studentStats: Record<string, { count: number; latest: number }> = {};
   reflections.forEach((r) => {
@@ -143,13 +160,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     .sort((a, b) => b.latest - a.latest)
     .slice(0, 5);
 
-  // Filtered Reflections
+  // Filtered Reflections for stream tab
   const filteredReflections = reflections.filter((r) => {
     const matchSearch =
       r.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (r.topic && r.topic.toLowerCase().includes(searchQuery.toLowerCase())) ||
       r.step1Text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.step2Text.toLowerCase().includes(searchQuery.toLowerCase());
+      r.step2Text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.reflectionLevelName && r.reflectionLevelName.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchSub = filterSubject === 'all' || r.subject === filterSubject;
     return matchSearch && matchSub;
   });
@@ -159,7 +177,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       onAlert('내보낼 기록이 없습니다.');
       return;
     }
-    const headers = ['날짜', '시간', '학생이름', '과목', '학습주제', '1단계_기록', 'AI_질문', '2단계_생각한칸더'];
+    const headers = [
+      '날짜',
+      '시간',
+      '학생이름',
+      '과목',
+      '학습주제',
+      '성찰_깊이_단계',
+      '성찰_단계명',
+      'AI_분석_사유',
+      'AI_근거_문장',
+      '1단계_기록',
+      'AI_질문',
+      '2단계_생각한칸더',
+    ];
     const rows = reflections.map((r) => {
       const d = new Date(r.timestamp);
       return [
@@ -168,6 +199,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         `"${r.studentName}"`,
         `"${r.subject}"`,
         `"${(r.topic || '').replace(/"/g, '""')}"`,
+        `"${r.reflectionLevel || 1}"`,
+        `"${r.reflectionLevelName || '사실 나열'}"`,
+        `"${(r.reflectionReason || '').replace(/"/g, '""')}"`,
+        `"${(r.reflectionEvidence || '').replace(/"/g, '""')}"`,
         `"${r.step1Text.replace(/"/g, '""')}"`,
         `"${r.aiQuestion.replace(/"/g, '""')}"`,
         `"${r.step2Text.replace(/"/g, '""')}"`,
@@ -250,6 +285,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </button>
 
         <button
+          id="tab-analysis"
+          onClick={() => setActiveTab('analysis')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'analysis'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-200'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 text-indigo-500" />
+          <span>학급 성찰 분석</span>
+          <span className="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.5 rounded-md font-extrabold">
+            NEW
+          </span>
+        </button>
+
+        <button
           id="tab-reflections"
           onClick={() => setActiveTab('reflections')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap ${
@@ -273,9 +324,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         >
           <FolderOpen className="w-4 h-4 text-teal-600" />
           <span>학습자료 관리</span>
-          <span className="bg-teal-100 text-teal-800 text-[10px] px-1.5 py-0.5 rounded-md font-extrabold">
-            NEW
-          </span>
         </button>
 
         <button
@@ -296,7 +344,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
           {/* Quick Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-2xl shadow-2xs border border-slate-200 flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-slate-400 block mb-1">총 성찰 기록</span>
@@ -321,12 +369,75 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <div className="bg-white p-5 rounded-2xl shadow-2xs border border-slate-200 flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-slate-400 block mb-1">가장 많은 성찰 과목</span>
+                <span className="text-xs font-bold text-slate-400 block mb-1">평균 성찰 깊이</span>
+                <span className="text-2xl font-extrabold text-indigo-600">{averageReflectionDepth}</span>
+                <span className="text-xs text-slate-500 ml-1">/ 4.0 단계</span>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Layers className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl shadow-2xs border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-400 block mb-1">가장 많은 과목</span>
                 <span className="text-2xl font-extrabold text-slate-800">{topSubject}</span>
               </div>
               <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                 <PieChart className="w-6 h-6" />
               </div>
+            </div>
+          </div>
+
+          {/* Prominent Reflection Depth Quick Summary Card */}
+          <div className="bg-white p-6 sm:p-7 rounded-3xl shadow-2xs border border-slate-200 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-indigo-600" />
+                  <span>학급 성찰 깊이 4단계 현황</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  1단계(사실 나열) • 2단계(이유 설명) • 3단계(개념 연결) • 4단계(전이 및 적용)
+                </p>
+              </div>
+
+              <button
+                id="btn-goto-analysis"
+                onClick={() => setActiveTab('analysis')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition-all cursor-pointer self-start sm:self-auto"
+              >
+                <span>학급 성찰 심층 분석 열기</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+              {(
+                [
+                  { lvl: 1, name: '1단계 · 사실 나열', color: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700' },
+                  { lvl: 2, name: '2단계 · 이유 설명', color: 'bg-blue-500', badge: 'bg-blue-50 text-blue-700' },
+                  { lvl: 3, name: '3단계 · 개념 연결', color: 'bg-indigo-600', badge: 'bg-indigo-50 text-indigo-700' },
+                  { lvl: 4, name: '4단계 · 전이 및 적용', color: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700' },
+                ] as const
+              ).map(({ lvl, name, color, badge }) => {
+                const count = levelCounts[lvl as ReflectionLevelNumber] || 0;
+                const percent = totalReflections > 0 ? Math.round((count / totalReflections) * 100) : 0;
+                return (
+                  <div key={lvl} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badge}`}>
+                        {name}
+                      </span>
+                      <span className="text-xs font-bold text-slate-500">{count}건</span>
+                    </div>
+                    <div className="text-2xl font-black text-slate-900">{percent}%</div>
+                    <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                      <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${percent}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -431,7 +542,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 2: REFLECTIONS STREAM */}
+      {/* TAB 2: CLASS REFLECTION ANALYSIS (NEW!) */}
+      {activeTab === 'analysis' && (
+        <ClassReflectionAnalysis
+          reflections={reflections}
+          roomCode={appState.roomCode!}
+          targetGrade={appState.targetGrade}
+          apiKey={appState.apiKey}
+          onRefresh={loadReflections}
+          onAlert={onAlert}
+        />
+      )}
+
+      {/* TAB 3: REFLECTIONS STREAM */}
       {activeTab === 'reflections' && (
         <div className="bg-white p-6 rounded-2xl shadow-2xs border border-slate-200 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
@@ -441,7 +564,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 <span>전체 학생 성찰 기록</span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                학급 학생들이 제출한 배움 기록과 AI 질문 답변을 실시간으로 확인합니다.
+                학급 학생들이 제출한 배움 기록과 AI 질문 답변 및 성찰 깊이를 실시간으로 확인합니다.
               </p>
             </div>
 
@@ -475,7 +598,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="학생 이름이나 주제, 배움 내용 검색..."
+                placeholder="학생 이름, 주제, 배움 내용, 성찰 단계 검색..."
                 className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-500 outline-hidden"
               />
             </div>
@@ -526,11 +649,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   hour: '2-digit',
                   minute: '2-digit',
                 });
+                const lvl = (ref.reflectionLevel || 1) as ReflectionLevelNumber;
+
+                const lvlBadgeClasses: Record<ReflectionLevelNumber, string> = {
+                  1: 'bg-slate-100 text-slate-700 border-slate-300',
+                  2: 'bg-blue-50 text-blue-700 border-blue-200',
+                  3: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                  4: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                };
 
                 return (
                   <div
                     key={ref.id || ref.timestamp}
-                    className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs transition-all space-y-3"
+                    onClick={() => setSelectedReflectionForModal(ref)}
+                    className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-sky-300 shadow-2xs hover:shadow-xs transition-all space-y-3 cursor-pointer"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
                       <div className="flex items-center gap-2">
@@ -552,7 +684,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           </span>
                         )}
                       </div>
-                      <span className="text-xs text-slate-400">{date}</span>
+
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${lvlBadgeClasses[lvl]}`}
+                        >
+                          {lvl}단계 · {ref.reflectionLevelName || '사실 나열'}
+                        </span>
+                        <span className="text-xs text-slate-400">{date}</span>
+                      </div>
                     </div>
 
                     <div className="space-y-2.5 text-xs">
@@ -573,6 +713,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           👉 <strong>생각 한 칸 더:</strong> {ref.step2Text}
                         </p>
                       </div>
+
+                      {ref.reflectionReason && (
+                        <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
+                          <span className="italic line-clamp-1">
+                            💡 AI 분석: {ref.reflectionReason}
+                          </span>
+                          <span className="text-sky-600 font-bold flex items-center gap-0.5 shrink-0 ml-2">
+                            <span>상세보기</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -582,7 +734,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 3: LEARNING MATERIALS MANAGER */}
+      {/* TAB 4: LEARNING MATERIALS MANAGER */}
       {activeTab === 'materials' && (
         <LearningMaterialsManager
           appState={appState}
@@ -590,7 +742,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         />
       )}
 
-      {/* TAB 4: ROOM SETTINGS & INFORMATION */}
+      {/* TAB 5: ROOM SETTINGS & INFORMATION */}
       {activeTab === 'settings' && (
         <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xs border border-slate-200 space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -684,6 +836,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Student Detail Modal */}
+      <StudentReflectionModal
+        isOpen={!!selectedReflectionForModal}
+        onClose={() => setSelectedReflectionForModal(null)}
+        reflection={selectedReflectionForModal}
+        studentAllReflections={reflections}
+      />
     </div>
   );
 };
+

@@ -1,5 +1,17 @@
 export type UserRole = 'none' | 'teacher' | 'student';
 
+export type ReflectionLevelNumber = 1 | 2 | 3 | 4;
+export type ReflectionLevelName = '사실 나열' | '이유 설명' | '개념 연결' | '전이 및 적용';
+
+export interface ReflectionAnalysis {
+  reflectionLevel: ReflectionLevelNumber;
+  levelName: ReflectionLevelName;
+  confidence: number;
+  reason: string;
+  evidence: string;
+  keywords?: string[];
+}
+
 export interface Room {
   id?: string;
   roomId?: string;
@@ -27,6 +39,14 @@ export interface Reflection {
   aiHint: string;
   step2Text: string;
   timestamp: number;
+  // Reflection Depth Analysis Fields
+  reflectionLevel?: ReflectionLevelNumber;
+  reflectionLevelName?: ReflectionLevelName;
+  reflectionConfidence?: number;
+  reflectionReason?: string;
+  reflectionEvidence?: string;
+  reflectionKeywords?: string[];
+  reflectionAnalyzedAt?: number;
 }
 
 export interface LearningMaterial {
